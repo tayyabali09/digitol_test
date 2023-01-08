@@ -40,7 +40,7 @@ class BookingController extends Controller
             $response = $this->repository->getUsersJobs($user_id);
 
         }
-        elseif($request->__authenticatedUser->user_type == env('ADMIN_ROLE_ID') || $request->__authenticatedUser->user_type == env('SUPERADMIN_ROLE_ID'))
+        elseif($request->__authenticatedUser->user_type == config('role.admin_role_id') || $request->__authenticatedUser->user_type == config('role.superadmin_role_id'))
         {
             $response = $this->repository->getAll($request);
         }
@@ -54,7 +54,7 @@ class BookingController extends Controller
      */
     public function show($id)
     {
-        $job = $this->repository->with('translatorJobRel.user')->find($id);
+        $job = $this->repository->with('translatorJob.user')->find($id);
 
         return response($job);
     }
@@ -81,8 +81,8 @@ class BookingController extends Controller
     public function update($id, Request $request)
     {
         $data = $request->all();
-        $cuser = $request->__authenticatedUser;
-        $response = $this->repository->updateJob($id, array_except($data, ['_token', 'submit']), $cuser);
+        $user = $request->__authenticatedUser;
+        $response = $this->repository->updateJob($id, array_except($data, ['_token', 'submit']), $user);
 
         return response($response);
     }
@@ -93,7 +93,6 @@ class BookingController extends Controller
      */
     public function immediateJobEmail(Request $request)
     {
-        $adminSenderEmail = config('app.adminemail');
         $data = $request->all();
 
         $response = $this->repository->storeJobEmail($data);
@@ -241,14 +240,11 @@ class BookingController extends Controller
             $admincomment = "";
         }
         if ($time || $distance) {
-
-            $affectedRows = Distance::where('job_id', '=', $jobid)->update(array('distance' => $distance, 'time' => $time));
+            Distance::where('job_id', '=', $jobid)->update(array('distance' => $distance, 'time' => $time));
         }
 
         if ($admincomment || $session || $flagged || $manually_handled || $by_admin) {
-
-            $affectedRows1 = Job::where('id', '=', $jobid)->update(array('admin_comments' => $admincomment, 'flagged' => $flagged, 'session_time' => $session, 'manually_handled' => $manually_handled, 'by_admin' => $by_admin));
-
+            Job::where('id', '=', $jobid)->update(array('admin_comments' => $admincomment, 'flagged' => $flagged, 'session_time' => $session, 'manually_handled' => $manually_handled, 'by_admin' => $by_admin));
         }
 
         return response('Record updated!');
@@ -267,9 +263,12 @@ class BookingController extends Controller
         $data = $request->all();
         $job = $this->repository->find($data['jobid']);
         $job_data = $this->repository->jobToData($job);
-        $this->repository->sendNotificationTranslator($job, $job_data, '*');
-
-        return response(['success' => 'Push sent']);
+        try{
+            $this->repository->sendNotificationTranslator($job, $job_data, '*');
+            return response(['success' => 'Push sent']);
+        } catch(\Exception $e){
+            return response(['success' => $e->getMessage()]);            
+        }
     }
 
     /**
@@ -281,8 +280,6 @@ class BookingController extends Controller
     {
         $data = $request->all();
         $job = $this->repository->find($data['jobid']);
-        $job_data = $this->repository->jobToData($job);
-
         try {
             $this->repository->sendSMSNotificationToTranslator($job);
             return response(['success' => 'SMS sent']);
