@@ -1,6 +1,3 @@
-# digitol_test
-digitol_test
-
 
 Comments
 Good about code 
